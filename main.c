@@ -112,6 +112,30 @@ u8* push_primitive_word(forth_t* f, const char* name, u8 flags, prim_t* primitiv
     return word;
 }
 
+u8* push_forth_word(forth_t* f, const char* name, u8 flags, u8** words)
+{
+    size_t namelen = strlen(name) + 1; // include null char
+    // compute the number of words
+    size_t nwords = 0;
+    while(words[nwords]) nwords++;
+    
+    size_t wordlen = 8 + 1 + 8 + namelen + nwords * 8;
+    
+    *cast(u8**, f->top_word) = f->top_word + wordlen; // next word
+    f->top_word[8] = 0; // flags
+    *cast(u64*, f->top_word + 9) = cast(u64, interpret);
+    strcpy(f->top_word + 17, name);
+
+    size_t n = 0;
+    for(; n < nwords ; ++n)
+	cast(u8**, f->top_word + 20)[n] = words[n];
+    (cast(u8**, f->top_word + 20))[n] = NULL;
+
+    u8* word = f->top_word;
+    f->top_word += wordlen;
+    return word;
+}
+
 forth_t* new_forth()
 {
     const size_t word_size = 65536;
@@ -135,19 +159,7 @@ forth_t* new_forth()
     push_primitive_word(f, "*", 0, mult);
     push_primitive_word(f, "dup", 0, dup);
 
-
-    // try to add sq, which is defined as : sq dup mult ;
-    size_t wordlen = 8 + 1 + 8 + 3 + 3 * 8;
-    *cast(u8**, f->top_word) = f->top_word + wordlen; // next word
-    f->top_word[8] = 0; // flags
-    *cast(u64*, f->top_word + 9) = cast(u64, interpret);
-    strcpy(f->top_word + 17, "sq");
-    
-    cast(u8**, f->top_word + 20)[0] = find_word(f, "dup");
-    (cast(u8**, f->top_word + 20))[1] = find_word(f, "*");
-    (cast(u8**, f->top_word + 20))[2] = NULL;
-
-    f->top_word += wordlen;
+    push_forth_word(f, "sq", 0, (u8*[]){find_word(f, "dup"), find_word(f, "*"), NULL});
     
     return f;
 }
