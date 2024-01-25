@@ -57,6 +57,15 @@ void mult(forth_t* f, u8* code)
     --f->top_stack;
 }
 
+void dup(forth_t* f, u8* code)
+{
+    assert(f->top_stack - f->stack >= 1);
+    long x = cast(long, f->top_stack[-1]);
+
+    *f->top_stack = x;
+    ++f->top_stack;
+}
+
 void printstack(forth_t* f)
 {
     printf("~ ");
@@ -103,6 +112,7 @@ forth_t* new_forth()
     // that prints the top element
     push_primitive_word(f, "42", 0, push42);
     push_primitive_word(f, "*", 0, mult);
+    push_primitive_word(f, "dup", 0, dup);
     
     return f;
 }
@@ -138,7 +148,7 @@ int main()
     run_word(f, find_word(f, "42"));
     printstack(f);
     
-    run_word(f, find_word(f, "42"));
+    run_word(f, find_word(f, "dup"));
     printstack(f);
 
     run_word(f, find_word(f, "*"));
