@@ -41,6 +41,9 @@ typedef struct
 
 typedef void prim_t(forth_t*, u8*);
 
+void run_word(forth_t* f, u8* word);
+u8* find_word(forth_t* f, const char* name);
+    
 void push42(forth_t* f, u8* code)
 {
     *f->top_stack = 42;
@@ -66,6 +69,24 @@ void dup(forth_t* f, u8* code)
     ++f->top_stack;
 }
 
+void interpret(forth_t* f, u8* code)
+{
+    code += 17;
+    // find the start of the instructions first (TODO store it to make
+    // it faster)
+    while(*code) ++code; // find null char
+    ++code;
+
+    // this is an array of pointers to words
+    u8** ps = cast(u8**, code);
+
+    while(*ps)
+    {
+	run_word(f, *ps);
+	++ps;
+    }
+}
+    
 void printstack(forth_t* f)
 {
     printf("~ ");
@@ -113,6 +134,20 @@ forth_t* new_forth()
     push_primitive_word(f, "42", 0, push42);
     push_primitive_word(f, "*", 0, mult);
     push_primitive_word(f, "dup", 0, dup);
+
+
+    // try to add sq, which is defined as : sq dup mult ;
+    size_t wordlen = 8 + 1 + 8 + 3 + 3 * 8;
+    *cast(u8**, f->top_word) = f->top_word + wordlen; // next word
+    f->top_word[8] = 0; // flags
+    *cast(u64*, f->top_word + 9) = cast(u64, interpret);
+    strcpy(f->top_word + 17, "sq");
+    
+    cast(u8**, f->top_word + 20)[0] = find_word(f, "dup");
+    (cast(u8**, f->top_word + 20))[1] = find_word(f, "*");
+    (cast(u8**, f->top_word + 20))[2] = NULL;
+
+    f->top_word += wordlen;
     
     return f;
 }
@@ -125,9 +160,12 @@ void free_forth(forth_t* f)
 }
 
 void run_word(forth_t* f, u8* word)
-{
+{    
     void (*p)(forth_t*, u8*) = *cast(void (**)(forth_t*, u8*), word + 9);
     p(f, word);
+
+    printf("just ran word %s, and resulted in the following stack:", word + 17);
+    printstack(f);
 }
 
 u8* find_word(forth_t* f, const char* name)
@@ -152,6 +190,9 @@ int main()
     printstack(f);
 
     run_word(f, find_word(f, "*"));
+    printstack(f);
+
+    run_word(f, find_word(f, "sq"));
     printstack(f);
     
     free_forth(f);
