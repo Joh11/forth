@@ -69,6 +69,35 @@ void dup(forth_t* f, u8* code)
     ++f->top_stack;
 }
 
+void key(forth_t* f, u8* code)
+{
+    char c = getchar();
+    if(c == EOF)
+    {
+	printf("[failure in getchar]\n");
+	if(feof(stdin))
+	    printf("[due to end of file]\n");
+	else
+	    printf("[due to something else]\n");
+
+	return;
+    }
+    
+    *f->top_stack = c;
+    ++f->top_stack;
+}
+
+void emit(forth_t* f, u8* code)
+{
+    assert(f->top_stack - f->stack >= 1);
+    assert(f->top_stack[-1] < 256); // only ASCII
+    char c = cast(char, f->top_stack[-1]);
+    putchar(c);
+    
+    --f->top_stack;
+}
+
+
 void interpret(forth_t* f, u8* code)
 {
     code += 17;
@@ -158,6 +187,8 @@ forth_t* new_forth()
     push_primitive_word(f, "42", 0, push42);
     push_primitive_word(f, "*", 0, mult);
     push_primitive_word(f, "dup", 0, dup);
+    push_primitive_word(f, "key", 0, key);
+    push_primitive_word(f, "emit", 0, emit);
 
     push_forth_word(f, "sq", 0, (u8*[]){find_word(f, "dup"), find_word(f, "*"), NULL});
     
@@ -205,6 +236,11 @@ int main()
     printstack(f);
 
     run_word(f, find_word(f, "sq"));
+    printstack(f);
+
+    run_word(f, find_word(f, "key"));
+    printstack(f);
+    run_word(f, find_word(f, "emit"));
     printstack(f);
     
     free_forth(f);
