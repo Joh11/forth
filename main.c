@@ -289,8 +289,6 @@ forth_t* new_forth()
     // by default, read from stdin
     f->input_stream = stdin;
 
-    // add two test functions: one that puts 42 on the stack, and one
-    // that prints the top element
     push_primitive_word(f, "42", 0, push42);
     push_primitive_word(f, "*", 0, mult);
     push_primitive_word(f, "dup", 0, dup);
