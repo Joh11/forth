@@ -50,7 +50,6 @@ typedef struct
     // or a string
     FILE* input_stream;
     
-    
     interp_state_t state;
 } forth_t;
 
@@ -268,6 +267,31 @@ u8* find_word(forth_t* f, const char* name)
     return *cast(u8**, word) ? word : NULL;
 }
 
+void repl(forth_t* f)
+{
+    // read word
+    // look up
+
+    // if normal mode: run it
+
+    // if compile mode: append it to the array of words
+
+    u8* word = find_word(f, "word");
+
+    while(1)
+    {
+	run_word(f, word);
+	if(f->state == NORMAL_STATE)
+	{
+	    u8* next = find_word(f, cast(u8*, f->top_stack[-1]));
+	    --f->top_stack;
+	    assert(next);
+
+	    run_word(f, next);
+	}
+    }
+}
+
 int main()
 {
     forth_t* f = new_forth();
@@ -291,6 +315,8 @@ int main()
     /* run_word(f, find_word(f, "emit")); */
     /* printstack(f); */
 
+    repl(f);
+    
     run_word(f, find_word(f, "word"));
     printstack(f);
     printf("word read: %s\n", (char*)f->top_stack[-1]);
