@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <inttypes.h>
 #include <string.h>
+#include <ctype.h>
 #include <assert.h>
 
 /* 
@@ -87,6 +88,36 @@ void key(forth_t* f, u8* code)
     ++f->top_stack;
 }
 
+void word(forth_t* f, u8* code)
+{
+    static char buf[64];
+    memset(buf, 0, 64);
+    
+    char c;
+    while(isspace(c = getchar())); // skip whitespace
+    size_t n = 0;
+    for(; n < 64; ++n)
+    {
+	buf[n] = c;
+	c = getchar();
+	if(isspace(c) || c == EOF) break;
+    }
+    
+    if(c == EOF)
+    {
+	printf("[failure in getchar]\n");
+	if(feof(stdin))
+	    printf("[due to end of file]\n");
+	else
+	    printf("[due to something else]\n");
+
+	return;
+    }
+    
+    *f->top_stack = cast(u64, &buf);
+    ++f->top_stack;
+}
+
 void emit(forth_t* f, u8* code)
 {
     assert(f->top_stack - f->stack >= 1);
@@ -96,7 +127,6 @@ void emit(forth_t* f, u8* code)
     
     --f->top_stack;
 }
-
 
 void interpret(forth_t* f, u8* code)
 {
@@ -189,6 +219,7 @@ forth_t* new_forth()
     push_primitive_word(f, "dup", 0, dup);
     push_primitive_word(f, "key", 0, key);
     push_primitive_word(f, "emit", 0, emit);
+    push_primitive_word(f, "word", 0, word);
 
     push_forth_word(f, "sq", 0, (u8*[]){find_word(f, "dup"), find_word(f, "*"), NULL});
     
@@ -241,6 +272,9 @@ int main()
     run_word(f, find_word(f, "key"));
     printstack(f);
     run_word(f, find_word(f, "emit"));
+    printstack(f);
+
+    run_word(f, find_word(f, "word"));
     printstack(f);
     
     free_forth(f);
