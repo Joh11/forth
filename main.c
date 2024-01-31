@@ -6,6 +6,7 @@
 #include <string.h>
 #include <ctype.h>
 #include <assert.h>
+#include <stdbool.h>
 
 /* 
    Anatomy of a forth word, stored in memory (in this order):
@@ -27,6 +28,8 @@ a possible solution:
 #define cast(type, val) ((type)(val))
 typedef uint8_t u8;
 typedef uint64_t u64;
+
+#define IMMEDIATE_FLAG 0x1
 
 typedef enum
 {
@@ -158,13 +161,66 @@ void interpret(forth_t* f, u8* code)
 	++ps;
     }
 }
+
+void semicolon(forth_t* f, u8* code)
+{
+    assert(f->state == COMPILE_STATE); // must be in compile mode
+    f->state = NORMAL_STATE;
+
+    // this is stupid, but I need to go over the whole dict to find
+    // the actual word we are compiling
+    u8* w = f->words;
+    while(*w) w = *cast(u8**, w);
     
+    *cast(u8**, w) = f->top_word;
+    f->top_word = w;
+}
+
+void colon(forth_t* f, u8* code)
+{
+    // consume the next word
+    run_word(f, find_word(f, "word"));
+    const char* name = cast(const char*, f->top_stack[-1]);
+    --f->top_stack;
+    
+    size_t namelen = strlen(name) + 1; // include null char
+    size_t wordlen = 8 + 1 + 8 + namelen;
+    
+    assert(f->state == NORMAL_STATE); // must be in normal mode
+    f->state = COMPILE_STATE;
+    
+    *cast(u64*, f->top_word + 9) = cast(u64, interpret);
+    strcpy(f->top_word + 17, name);
+    
+    f->top_word += wordlen;
+}
+
 void printstack(forth_t* f)
 {
-    printf("~ ");
-    for(u64* p = f->stack ; p < f->top_stack ; p++)
+    printf("stack: ");
+    u64* p = f->stack;
+    for(; p < f->top_stack - 1 ; p++)
     {
-	printf("%ld - ", *p);
+	printf("%ld ", *p);
+    }
+    if(p < f->top_stack) printf("%ld", *p);
+    printf("\n");
+}
+
+void printstack_prim(forth_t* f, u8* code)
+{
+    printstack(f);
+}
+
+void printwords(forth_t* f, u8* code)
+{
+    printf("words: ");
+    u8* p = f->words;
+    while(*p)
+    {
+	printf("%s", cast(const char*, p + 17));
+	p = *cast(u8**, p);
+	if(*p) printf(" ");
     }
     printf("\n");
 }
@@ -208,6 +264,11 @@ u8* push_forth_word(forth_t* f, const char* name, u8 flags, u8** words)
     return word;
 }
 
+bool is_immediate_word(u8* word)
+{
+    return word[8] & IMMEDIATE_FLAG;
+}
+
 forth_t* new_forth()
 {
     const size_t word_size = 65536;
@@ -236,8 +297,13 @@ forth_t* new_forth()
     push_primitive_word(f, "key", 0, key);
     push_primitive_word(f, "emit", 0, emit);
     push_primitive_word(f, "word", 0, word);
+    push_primitive_word(f, ":", 0, colon);
+    push_primitive_word(f, ";", IMMEDIATE_FLAG, semicolon);
 
-    push_forth_word(f, "sq", 0, (u8*[]){find_word(f, "dup"), find_word(f, "*"), NULL});
+    push_primitive_word(f, ".s", 0, printstack_prim);
+    push_primitive_word(f, ".w", 0, printwords);
+    
+    // push_forth_word(f, "sq", 0, (u8*[]){find_word(f, "dup"), find_word(f, "*"), NULL});
     
     return f;
 }
@@ -253,9 +319,6 @@ void run_word(forth_t* f, u8* word)
 {    
     void (*p)(forth_t*, u8*) = *cast(void (**)(forth_t*, u8*), word + 9);
     p(f, word);
-
-    printf("just ran word %s, and resulted in the following stack:", word + 17);
-    printstack(f);
 }
 
 u8* find_word(forth_t* f, const char* name)
@@ -269,34 +332,43 @@ u8* find_word(forth_t* f, const char* name)
 
 void repl(forth_t* f)
 {
-    // read word
-    // look up
-
-    // if normal mode: run it
-
-    // if compile mode: append it to the array of words
-
     u8* word = find_word(f, "word");
 
     while(1)
     {
 	run_word(f, word);
+	const char* wordstring = cast(const char*, f->top_stack[-1]);
+	--f->top_stack;
+	
 	if(f->state == NORMAL_STATE)
 	{
-	    u8* next = find_word(f, cast(u8*, f->top_stack[-1]));
-	    --f->top_stack;
+	    u8* next = find_word(f, wordstring);
 	    assert(next);
 
 	    run_word(f, next);
 	}
+	else if(f->state == COMPILE_STATE)
+	{
+	    // TODO deal with numbers first
+	    u8* next = find_word(f, wordstring);
+	    if(!next) printf("failed to find %s", wordstring);
+	    assert(next);
+
+	    if(is_immediate_word(next))
+		run_word(f, next);
+	    else
+	    {
+		*cast(u8**, f->top_word) = next;
+		f->top_word += 8;
+	    }
+	}
+	else assert(0); // should not happen
     }
 }
 
 int main()
 {
     forth_t* f = new_forth();
-
-    printstack(f);
 
     /* run_word(f, find_word(f, "42")); */
     /* printstack(f); */
@@ -323,7 +395,6 @@ int main()
 
     const char* txt = "je suis un test";
     FILE* s = fmemopen(txt, strlen(txt) + 1, "r");
-    // FILE* s = open_memstream(txt, strlen(txt) + 1);
 
     f->input_stream = s;
     run_word(f, find_word(f, "word"));
