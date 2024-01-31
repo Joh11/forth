@@ -1,3 +1,5 @@
+#define _GNU_SOURCE
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <inttypes.h>
@@ -26,6 +28,11 @@ a possible solution:
 typedef uint8_t u8;
 typedef uint64_t u64;
 
+typedef enum
+{
+    NORMAL_STATE, COMPILE_STATE
+} interp_state_t;
+
 typedef struct
 {
     u8* words;
@@ -38,6 +45,13 @@ typedef struct
     // pointers to the top of the two stacks (i.e. the next free one)
     u8* top_word;
     u64* top_stack;
+
+    // by default stdin, but can be changed to i.e. read from a file
+    // or a string
+    FILE* input_stream;
+    
+    
+    interp_state_t state;
 } forth_t;
 
 typedef void prim_t(forth_t*, u8*);
@@ -72,11 +86,11 @@ void dup(forth_t* f, u8* code)
 
 void key(forth_t* f, u8* code)
 {
-    char c = getchar();
+    char c = fgetc(f->input_stream);
     if(c == EOF)
     {
 	printf("[failure in getchar]\n");
-	if(feof(stdin))
+	if(feof(f->input_stream))
 	    printf("[due to end of file]\n");
 	else
 	    printf("[due to something else]\n");
@@ -94,19 +108,19 @@ void word(forth_t* f, u8* code)
     memset(buf, 0, 64);
     
     char c;
-    while(isspace(c = getchar())); // skip whitespace
+    while(isspace(c = fgetc(f->input_stream))); // skip whitespace
     size_t n = 0;
     for(; n < 64; ++n)
     {
 	buf[n] = c;
-	c = getchar();
+	c = fgetc(f->input_stream);
 	if(isspace(c) || c == EOF) break;
     }
     
     if(c == EOF)
     {
 	printf("[failure in getchar]\n");
-	if(feof(stdin))
+	if(feof(f->input_stream))
 	    printf("[due to end of file]\n");
 	else
 	    printf("[due to something else]\n");
@@ -212,6 +226,9 @@ forth_t* new_forth()
     f->top_word = f->words;
     f->top_stack = f->stack;
 
+    // by default, read from stdin
+    f->input_stream = stdin;
+
     // add two test functions: one that puts 42 on the stack, and one
     // that prints the top element
     push_primitive_word(f, "42", 0, push42);
@@ -257,25 +274,36 @@ int main()
 
     printstack(f);
 
-    run_word(f, find_word(f, "42"));
-    printstack(f);
+    /* run_word(f, find_word(f, "42")); */
+    /* printstack(f); */
     
-    run_word(f, find_word(f, "dup"));
-    printstack(f);
+    /* run_word(f, find_word(f, "dup")); */
+    /* printstack(f); */
 
-    run_word(f, find_word(f, "*"));
-    printstack(f);
+    /* run_word(f, find_word(f, "*")); */
+    /* printstack(f); */
 
-    run_word(f, find_word(f, "sq"));
-    printstack(f);
+    /* run_word(f, find_word(f, "sq")); */
+    /* printstack(f); */
 
-    run_word(f, find_word(f, "key"));
-    printstack(f);
-    run_word(f, find_word(f, "emit"));
-    printstack(f);
+    /* run_word(f, find_word(f, "key")); */
+    /* printstack(f); */
+    /* run_word(f, find_word(f, "emit")); */
+    /* printstack(f); */
 
     run_word(f, find_word(f, "word"));
     printstack(f);
+    printf("word read: %s\n", (char*)f->top_stack[-1]);
+
+    const char* txt = "je suis un test";
+    FILE* s = fmemopen(txt, strlen(txt) + 1, "r");
+    // FILE* s = open_memstream(txt, strlen(txt) + 1);
+
+    f->input_stream = s;
+    run_word(f, find_word(f, "word"));
+    printstack(f);
+    printf("word read: %s\n", (char*)f->top_stack[-1]);
+    fclose(s);
     
     free_forth(f);
     return 0;
