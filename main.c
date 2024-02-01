@@ -260,20 +260,16 @@ void printstack(forth_t* f)
     printf("\n");
 }
 
-void printstack_prim(forth_t* f, u8* code)
+void printwords(forth_t* f)
 {
-    printstack(f);
-}
-
-void printwords(forth_t* f, u8* code)
-{
+    u8* latest = f->latest;
     printf("words: ");
-    u8* p = f->words;
-    while(*p)
+    while(latest)
     {
-	printf("%s", cast(const char*, p + 17));
-	p = *cast(u8**, p);
-	if(*p) printf(" ");
+	printf("%s", wordname(latest));
+	printf(" ");
+
+	latest = *cast(u8**, latest);
     }
     printf("\n");
 }
@@ -362,8 +358,8 @@ forth_t* new_forth()
     /* push_primitive_word(f, ":", 0, colon); */
     /* push_primitive_word(f, ";", IMMEDIATE_FLAG, semicolon); */
 
-    /* push_primitive_word(f, ".s", 0, printstack_prim); */
-    /* push_primitive_word(f, ".w", 0, printwords); */
+    push_primitive_word(f, ".s", 0, printstack);
+    push_primitive_word(f, ".w", 0, printwords);
     
     push_forth_word(f, "sq", 0, (u8*[]){find_word(f, "dup"), find_word(f, "*"), NULL});
     
