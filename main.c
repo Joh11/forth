@@ -215,38 +215,36 @@ u64* codeword(u8* word)
 
 u8* wordname(u8* word) { return word + 9; }
 
-/* void semicolon(forth_t* f, u8* code) */
-/* { */
-/*     assert(f->state == COMPILE_STATE); // must be in compile mode */
-/*     f->state = NORMAL_STATE; */
+void semicolon(forth_t* f)
+{
+    assert(f->state == COMPILE_STATE); // must be in compile mode
+    f->state = NORMAL_STATE;
 
-/*     // this is stupid, but I need to go over the whole dict to find */
-/*     // the actual word we are compiling */
-/*     u8* w = f->words; */
-/*     while(*w) w = *cast(u8**, w); */
-    
-/*     *cast(u8**, w) = f->top_word; */
-/*     f->top_word = w; */
-/* } */
+    // put exit at the end to close the word
+    *cast(u64**, f->here) = codeword(find_word(f, "exit"));
+    f->here += 8;
+}
 
-/* void colon(forth_t* f, u8* code) */
-/* { */
-/*     // consume the next word */
-/*     run_word(f, find_word(f, "word")); */
-/*     const char* name = cast(const char*, f->top_stack[-1]); */
-/*     --f->top_stack; */
+void colon(forth_t* f)
+{
+    // consume the next word
+    run_word(f, find_word(f, "word"));
+    const char* name = cast(const char*, pop(f));
     
-/*     size_t namelen = strlen(name) + 1; // include null char */
-/*     size_t wordlen = 8 + 1 + 8 + namelen; */
+    size_t namelen = strlen(name) + 1; // include null char
+    size_t wordlen = 8 + 1 + 8 + namelen;
     
-/*     assert(f->state == NORMAL_STATE); // must be in normal mode */
-/*     f->state = COMPILE_STATE; */
-    
-/*     *cast(u64*, f->top_word + 9) = cast(u64, interpret); */
-/*     strcpy(f->top_word + 17, name); */
-    
-/*     f->top_word += wordlen; */
-/* } */
+    assert(f->state == NORMAL_STATE); // must be in normal mode
+    f->state = COMPILE_STATE;
+
+    *cast(u8**, f->here) = f->latest;
+    f->here[9] = 0; // flags
+    strcpy(wordname(f->here), name);
+    *codeword(f->here) = cast(u64, docol);
+
+    f->latest = f->here;
+    f->here += wordlen;
+}
 
 void printstack(forth_t* f)
 {
@@ -319,6 +317,38 @@ bool is_immediate_word(u8* word)
     return word[8] & IMMEDIATE_FLAG;
 }
 
+void dumpwords(forth_t* f)
+{
+    u8* latest = f->latest;
+    u64 exitcw = cast(u64, codeword(find_word(f, "exit")));
+
+    while(latest)
+    {
+	const char* name = wordname(latest);
+	u64* cw = codeword(latest);
+	
+	printf("found word %s at %p (cw at %p)\n", name, latest, cw);
+	if(*cw == cast(u64, docol) && strcmp(name, "docol") != 0)
+	{
+	    printf("forth word, consisting of: \n");
+
+	    // now also print the content
+	    size_t n = 1;
+	    while(cw[n] != exitcw)
+	    {
+		printf("  %p\n", cw[n]);
+		++n;
+	    }
+	}
+	else
+	    printf("primitive word\n");
+	
+	
+	printf("\n");
+	latest = *cast(u8**, latest);
+    }
+}
+
 forth_t* new_forth()
 {
     const size_t word_size = 65536;
@@ -355,13 +385,14 @@ forth_t* new_forth()
     /* push_primitive_word(f, "key", 0, key); */
     /* push_primitive_word(f, "emit", 0, emit); */
     push_primitive_word(f, "word", 0, word);
-    /* push_primitive_word(f, ":", 0, colon); */
-    /* push_primitive_word(f, ";", IMMEDIATE_FLAG, semicolon); */
+    push_primitive_word(f, ":", 0, colon);
+    push_primitive_word(f, ";", IMMEDIATE_FLAG, semicolon);
 
     push_primitive_word(f, ".s", 0, printstack);
     push_primitive_word(f, ".w", 0, printwords);
+    push_primitive_word(f, ".d", 0, dumpwords);
     
-    push_forth_word(f, "sq", 0, (u8*[]){find_word(f, "dup"), find_word(f, "*"), NULL});
+    // push_forth_word(f, "sq", 0, (u8*[]){find_word(f, "dup"), find_word(f, "*"), NULL});
     
     return f;
 }
@@ -413,7 +444,7 @@ void repl(forth_t* f)
 		run_word(f, next);
 	    else
 	    {
-		*cast(u8**, f->here) = next;
+		*cast(u64**, f->here) = codeword(next);
 		f->here += 8;
 	    }
 	}
@@ -421,37 +452,6 @@ void repl(forth_t* f)
     }
 }
 
-void dumpwords(forth_t* f)
-{
-    u8* latest = f->latest;
-    u64 exitcw = cast(u64, codeword(find_word(f, "exit")));
-
-    while(latest)
-    {
-	const char* name = wordname(latest);
-	u64* cw = codeword(latest);
-	
-	printf("found word %s at %p (cw at %p)\n", name, latest, cw);
-	if(*cw == cast(u64, docol) && strcmp(name, "docol") != 0)
-	{
-	    printf("forth word, consisting of: \n");
-
-	    // now also print the content
-	    size_t n = 1;
-	    while(cw[n] != exitcw)
-	    {
-		printf("  %p\n", cw[n]);
-		++n;
-	    }
-	}
-	else
-	    printf("primitive word\n");
-	
-	
-	printf("\n");
-	latest = *cast(u8**, latest);
-    }
-}
 
 void run_word(forth_t* f, u8* word)
 {
@@ -479,10 +479,10 @@ int main()
 
     dumpwords(f);
 
-    run_word(f, find_word(f, "42"));
-    printstack(f);
-    run_word(f, find_word(f, "sq"));
-    printstack(f);
+    /* run_word(f, find_word(f, "42")); */
+    /* printstack(f); */
+    /* run_word(f, find_word(f, "sq")); */
+    /* printstack(f); */
 
     repl(f);
     
