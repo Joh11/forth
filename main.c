@@ -82,8 +82,15 @@ u8* find_word(forth_t* f, const char* name);
 /*     } */
 /* } */
 
+// stack manipulation
+
+// (return stack)
 u64 rpop(forth_t* f) { assert(f->top_rstack > f->rstack); return *(--f->top_rstack); }
 void rpush(forth_t* f, u64 p) { *f->top_rstack = p; ++(f->top_rstack); }
+
+// (value stack)
+u64 pop(forth_t* f) { assert(f->top_stack > f->stack); return *(--f->top_stack); }
+void push(forth_t* f, u64 p) { *f->top_stack = p; ++(f->top_stack); }
 
 void docol(forth_t* f)
 {
@@ -141,7 +148,7 @@ void key(forth_t* f, u8* code)
     ++f->top_stack;
 }
 
-void word(forth_t* f, u8* code)
+void word(forth_t* f)
 {
     static char buf[64];
     memset(buf, 0, 64);
@@ -166,9 +173,8 @@ void word(forth_t* f, u8* code)
 
 	return;
     }
-    
-    *f->top_stack = cast(u64, &buf);
-    ++f->top_stack;
+
+    push(f, cast(u64, &buf));
 }
 
 void emit(forth_t* f, u8* code)
@@ -352,7 +358,7 @@ forth_t* new_forth()
     push_primitive_word(f, "dup", 0, dup);
     /* push_primitive_word(f, "key", 0, key); */
     /* push_primitive_word(f, "emit", 0, emit); */
-    /* push_primitive_word(f, "word", 0, word); */
+    push_primitive_word(f, "word", 0, word);
     /* push_primitive_word(f, ":", 0, colon); */
     /* push_primitive_word(f, ";", IMMEDIATE_FLAG, semicolon); */
 
@@ -371,12 +377,6 @@ void free_forth(forth_t* f)
     free(f);
 }
 
-/* void run_word(forth_t* f, u8* word) */
-/* {     */
-/*     void (*p)(forth_t*, u8*) = *cast(void (**)(forth_t*, u8*), word + 9); */
-/*     p(f, word); */
-/* } */
-
 u8* find_word(forth_t* f, const char* name)
 {
     u8* latest = f->latest;
@@ -390,41 +390,40 @@ u8* find_word(forth_t* f, const char* name)
     return NULL;
 }
 
-/* void repl(forth_t* f) */
-/* { */
-/*     u8* word = find_word(f, "word"); */
+void repl(forth_t* f)
+{
+    u8* word = find_word(f, "word"); assert(word);
 
-/*     while(1) */
-/*     { */
-/* 	run_word(f, word); */
-/* 	const char* wordstring = cast(const char*, f->top_stack[-1]); */
-/* 	--f->top_stack; */
+    while(true)
+    {
+	run_word(f, word);
+	const char* wordstring = cast(const char*, pop(f));
 	
-/* 	if(f->state == NORMAL_STATE) */
-/* 	{ */
-/* 	    u8* next = find_word(f, wordstring); */
-/* 	    assert(next); */
+	if(f->state == NORMAL_STATE)
+	{
+	    u8* next = find_word(f, wordstring);
+	    assert(next);
 
-/* 	    run_word(f, next); */
-/* 	} */
-/* 	else if(f->state == COMPILE_STATE) */
-/* 	{ */
-/* 	    // TODO deal with numbers first */
-/* 	    u8* next = find_word(f, wordstring); */
-/* 	    if(!next) printf("failed to find %s", wordstring); */
-/* 	    assert(next); */
+	    run_word(f, next);
+	}
+	else if(f->state == COMPILE_STATE)
+	{
+	    // TODO deal with numbers first
+	    u8* next = find_word(f, wordstring);
+	    if(!next) printf("failed to find %s", wordstring);
+	    assert(next);
 
-/* 	    if(is_immediate_word(next)) */
-/* 		run_word(f, next); */
-/* 	    else */
-/* 	    { */
-/* 		*cast(u8**, f->top_word) = next; */
-/* 		f->top_word += 8; */
-/* 	    } */
-/* 	} */
-/* 	else assert(0); // should not happen */
-/*     } */
-/* } */
+	    if(is_immediate_word(next))
+		run_word(f, next);
+	    else
+	    {
+		*cast(u8**, f->here) = next;
+		f->here += 8;
+	    }
+	}
+	else assert(false); // should not happen
+    }
+}
 
 void dumpwords(forth_t* f)
 {
@@ -488,6 +487,8 @@ int main()
     printstack(f);
     run_word(f, find_word(f, "sq"));
     printstack(f);
+
+    repl(f);
     
     free_forth(f);
     return 0;
