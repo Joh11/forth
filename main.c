@@ -73,15 +73,6 @@ typedef void prim_t(forth_t*);
 void run_word(forth_t* f, u8* word);
 u8* find_word(forth_t* f, const char* name);
 
-/* void interpreter(forth_t* f) */
-/* { */
-/*     while(true) */
-/*     { */
-/* 	*cast(void (**)(forth_t*), sp); */
-/* 	++sp; */
-/*     } */
-/* } */
-
 // stack manipulation
 
 // (return stack)
@@ -130,7 +121,7 @@ void dup(forth_t* f)
     ++f->top_stack;
 }
 
-void key(forth_t* f, u8* code)
+void key(forth_t* f)
 {
     char c = fgetc(f->input_stream);
     if(c == EOF)
@@ -143,9 +134,8 @@ void key(forth_t* f, u8* code)
 
 	return;
     }
-    
-    *f->top_stack = c;
-    ++f->top_stack;
+
+    push(f, c);
 }
 
 void word(forth_t* f)
@@ -177,32 +167,13 @@ void word(forth_t* f)
     push(f, cast(u64, &buf));
 }
 
-void emit(forth_t* f, u8* code)
+void emit(forth_t* f)
 {
     assert(f->top_stack - f->stack >= 1);
     assert(f->top_stack[-1] < 256); // only ASCII
-    char c = cast(char, f->top_stack[-1]);
-    putchar(c);
     
-    --f->top_stack;
-}
-
-void interpret(forth_t* f, u8* code)
-{
-    code += 17;
-    // find the start of the instructions first (TODO store it to make
-    // it faster)
-    while(*code) ++code; // find null char
-    ++code;
-
-    // this is an array of pointers to words
-    u8** ps = cast(u8**, code);
-
-    while(*ps)
-    {
-	run_word(f, *ps);
-	++ps;
-    }
+    char c = cast(char, pop(f));
+    putchar(c);
 }
 
 u64* codeword(u8* word)
@@ -336,7 +307,7 @@ void dumpwords(forth_t* f)
 	    size_t n = 1;
 	    while(cw[n] != exitcw)
 	    {
-		printf("  %p\n", cw[n]);
+		printf("  %p\n", cast(u64*, cw[n]));
 		++n;
 	    }
 	}
@@ -382,8 +353,8 @@ forth_t* new_forth()
     push_primitive_word(f, "docol", 0, docol);
     push_primitive_word(f, "exit", 0, doexit);
     push_primitive_word(f, "dup", 0, dup);
-    /* push_primitive_word(f, "key", 0, key); */
-    /* push_primitive_word(f, "emit", 0, emit); */
+    push_primitive_word(f, "key", 0, key);
+    push_primitive_word(f, "emit", 0, emit);
     push_primitive_word(f, "word", 0, word);
     push_primitive_word(f, ":", 0, colon);
     push_primitive_word(f, ";", IMMEDIATE_FLAG, semicolon);
@@ -452,11 +423,8 @@ void repl(forth_t* f)
     }
 }
 
-
 void run_word(forth_t* f, u8* word)
 {
-    printf("running word %s directly\n", wordname(word));
-    
     f->current = codeword(word);
     f->next = NULL;
 
@@ -476,14 +444,7 @@ void run_word(forth_t* f, u8* word)
 int main()
 {
     forth_t* f = new_forth();
-
-    dumpwords(f);
-
-    /* run_word(f, find_word(f, "42")); */
-    /* printstack(f); */
-    /* run_word(f, find_word(f, "sq")); */
-    /* printstack(f); */
-
+    
     repl(f);
     
     free_forth(f);
