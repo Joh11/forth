@@ -1,1 +1,9 @@
 #+title: A simple Forth interpreter
+
+There are two main things to do in this branch:
+- implement the return stack in C, instead of relying on the one
+  provided by the program. This will allow me to follow more closely
+  Jonesforth tutorial
+- Change my dictionary, such that the link pointer is pointing to the
+  previous word, not the next one. Makes more sense because it makes
+  it a stack.
