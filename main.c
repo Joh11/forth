@@ -28,6 +28,7 @@ a possible solution:
 #define cast(type, val) ((type)(val))
 typedef uint8_t u8;
 typedef uint64_t u64;
+typedef int64_t i64;
 
 #define IMMEDIATE_FLAG 0x1
 
@@ -94,6 +95,40 @@ void docol(forth_t* f)
 void doexit(forth_t* f)
 {
     f->next = cast(u64*, rpop(f));
+}
+
+void lit(forth_t* f)
+{
+    push(f, *f->next);
+    f->next += 1;
+}
+
+bool parse_number(const char* txt, i64* num)
+{
+    i64 n = 0;
+    bool negative = false;
+    if(strlen(txt) == 0) return false;
+
+    // take care of negative sign
+    if(*txt == '-')
+    {
+	negative = true;
+	txt++;
+	if(strlen(txt) == 0) return false;
+    }
+
+    while(*txt != '\0')
+    {
+	if(isdigit(*txt))
+	{
+	    n = 10 * n + (*txt - '0');
+	    txt++;
+	}
+	else return false;
+    }
+
+    *num = negative ? -n : n;
+    return true;
 }
 
 void push42(forth_t* f)
@@ -358,6 +393,7 @@ forth_t* new_forth()
     push_primitive_word(f, "word", 0, word);
     push_primitive_word(f, ":", 0, colon);
     push_primitive_word(f, ";", IMMEDIATE_FLAG, semicolon);
+    push_primitive_word(f, "lit", 0, lit);
 
     push_primitive_word(f, ".s", 0, printstack);
     push_primitive_word(f, ".w", 0, printwords);
@@ -391,6 +427,7 @@ u8* find_word(forth_t* f, const char* name)
 void repl(forth_t* f)
 {
     u8* word = find_word(f, "word"); assert(word);
+    u8* lit = find_word(f, "lit"); assert(lit);
 
     while(true)
     {
@@ -399,24 +436,46 @@ void repl(forth_t* f)
 	
 	if(f->state == NORMAL_STATE)
 	{
-	    u8* next = find_word(f, wordstring);
-	    assert(next);
-
-	    run_word(f, next);
+	    // see if we can parse a number;
+	    i64 num;
+	    if(parse_number(wordstring, &num))
+	    {
+		push(f, cast(u64, num));
+	    }
+	    else
+	    {
+		u8* next = find_word(f, wordstring);
+		assert(next);
+		
+		run_word(f, next);
+	    }
 	}
 	else if(f->state == COMPILE_STATE)
 	{
-	    // TODO deal with numbers first
-	    u8* next = find_word(f, wordstring);
-	    if(!next) printf("failed to find %s", wordstring);
-	    assert(next);
-
-	    if(is_immediate_word(next))
-		run_word(f, next);
+	    // see if we can parse a number
+	    i64 num;
+	    if(parse_number(wordstring, &num))
+	    {
+		// put LIT, then the number
+		*cast(u64**, f->here) = codeword(lit);
+		f->here += 8;
+		*cast(i64*, f->here) = num;
+		f->here += 8;
+	    }
 	    else
 	    {
-		*cast(u64**, f->here) = codeword(next);
-		f->here += 8;
+		// TODO deal with numbers first
+		u8* next = find_word(f, wordstring);
+		if(!next) printf("failed to find %s", wordstring);
+		assert(next);
+		
+		if(is_immediate_word(next))
+		    run_word(f, next);
+		else
+		{
+		    *cast(u64**, f->here) = codeword(next);
+		    f->here += 8;
+		}
 	    }
 	}
 	else assert(false); // should not happen
