@@ -76,13 +76,18 @@ u8* find_word(forth_t* f, const char* name);
 
 // stack manipulation
 
+u64 stack_size(forth_t* f) { return f->top_stack - f->stack; }
+u64 rstack_size(forth_t* f) { return f->top_rstack - f->rstack; }
+
 // (return stack)
-u64 rpop(forth_t* f) { assert(f->top_rstack > f->rstack); return *(--f->top_rstack); }
-void rpush(forth_t* f, u64 p) { *f->top_rstack = p; ++(f->top_rstack); }
+u64 rpop(forth_t* f) { assert(stack_size(f) > 0); return *(--f->top_rstack); }
+void rpush(forth_t* f, u64 p) { assert(rstack_size(f) < f->rstack_size);
+    *f->top_rstack = p; ++(f->top_rstack); }
 
 // (value stack)
-u64 pop(forth_t* f) { assert(f->top_stack > f->stack); return *(--f->top_stack); }
-void push(forth_t* f, u64 p) { *f->top_stack = p; ++(f->top_stack); }
+u64 pop(forth_t* f) { assert(stack_size(f) > 0); return *(--f->top_stack); }
+void push(forth_t* f, u64 p) { assert(stack_size(f) < f->stack_size);
+    *f->top_stack = p; ++(f->top_stack); }
 
 void docol(forth_t* f)
 {
@@ -146,6 +151,8 @@ void mult(forth_t* f)
     f->top_stack[-2] = a * b;
     --f->top_stack;
 }
+
+void drop(forth_t* f) { pop(f); }
 
 void dup(forth_t* f)
 {
@@ -394,6 +401,7 @@ forth_t* new_forth()
     push_primitive_word(f, ":", 0, colon);
     push_primitive_word(f, ";", IMMEDIATE_FLAG, semicolon);
     push_primitive_word(f, "lit", 0, lit);
+    push_primitive_word(f, "drop", 0, drop);
 
     push_primitive_word(f, ".s", 0, printstack);
     push_primitive_word(f, ".w", 0, printwords);
