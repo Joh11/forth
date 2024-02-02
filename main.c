@@ -260,14 +260,36 @@ void word(forth_t* f)
     char c;
     while(isspace(c = fgetc(f->input_stream))); // skip whitespace
     size_t n = 0;
+
+    // skip comments before the word
+    if(c == '#')
+    {
+	while(true)
+	{
+	    c = fgetc(f->input_stream);
+	    if(c == '\n' || c == EOF) break;
+	}
+	if(c != EOF) c = fgetc(f->input_stream);
+    }
+    
     for(; n < 64; ++n)
     {
 	buf[n] = c;
 	c = fgetc(f->input_stream);
-	if(isspace(c) || c == EOF) break;
+	if(isspace(c) || c == EOF || c == '#') break;
+    }
+
+    // skip comments after the word
+    if(c == '#')
+    {
+	while(true)
+	{
+	    c = fgetc(f->input_stream);
+	    if(c == '\n' || c == EOF) break;
+	}
     }
     
-    if(c == EOF)
+    if(n == 0 && c == EOF)
     {
 	printf("[failure in getchar]\n");
 	if(feof(f->input_stream))
