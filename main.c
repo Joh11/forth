@@ -323,6 +323,11 @@ void dofind_word(forth_t* f)
     push(f, cast(u64, find_word(f, cast(const char*, pop(f)))));
 }
 
+void dostdin(forth_t* f) { push(f, cast(u64, stdin)); }
+
+void set_input_stream(forth_t* f) { f->input_stream = cast(FILE*, pop(f)); }
+void get_input_stream(forth_t* f) { push(f, cast(u64, f->input_stream)); }
+
 void open_read_file(forth_t* f)
 {
     assert(stack_size(f) >= 1);
@@ -475,7 +480,6 @@ u8* push_forth_word_raw(forth_t* f, const char* name, u8 flags, u64* words)
     return f->latest;
 }
 
-
 bool is_immediate_word(u8* word)
 {
     return word[8] & IMMEDIATE_FLAG;
@@ -567,7 +571,7 @@ forth_t* new_forth()
     push_primitive_word(f, "error", 0, doerror);
     push_primitive_word(f, "run-word", 0, dorun_word);
     push_primitive_word(f, "code-word", 0, docodeword);
-    
+        
     push_primitive_word(f, "key", 0, key);
     push_primitive_word(f, "emit", 0, emit);
     push_primitive_word(f, "word", 0, word);
@@ -579,6 +583,10 @@ forth_t* new_forth()
     push_primitive_word(f, "lit", 0, lit);
     push_primitive_word(f, "branch", 0, branch);
     push_primitive_word(f, "immediate", 0, immediate);
+    push_primitive_word(f, "stdin", 0, dostdin);
+    push_primitive_word(f, "set-input-stream", 0, set_input_stream);
+    push_primitive_word(f, "get-input-stream", 0, get_input_stream);
+    push_primitive_word(f, "close-file", 0, close_file);
 
     push_primitive_word(f, ".s", 0, printstack);
     push_primitive_word(f, ".w", 0, printwords);
@@ -631,6 +639,10 @@ void repl(forth_t* f)
     u8* word = find_word(f, "word"); assert(word);
     u8* lit = find_word(f, "lit"); assert(lit);
 
+    // startup script (will take care of closing itself)
+    f->input_stream = fopen("startup.f", "r");
+    assert(f->input_stream);
+    
     while(true)
     {
 	run_word(f, word);
@@ -668,7 +680,7 @@ void repl(forth_t* f)
 	    {
 		// TODO deal with numbers first
 		u8* next = find_word(f, wordstring);
-		if(!next) printf("failed to find %s", wordstring);
+		if(!next) printf("failed to find %s\n", wordstring);
 		assert(next);
 		
 		if(is_immediate_word(next))
