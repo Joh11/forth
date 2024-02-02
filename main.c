@@ -80,7 +80,7 @@ u64 stack_size(forth_t* f) { return f->top_stack - f->stack; }
 u64 rstack_size(forth_t* f) { return f->top_rstack - f->rstack; }
 
 // (return stack)
-u64 rpop(forth_t* f) { assert(stack_size(f) > 0); return *(--f->top_rstack); }
+u64 rpop(forth_t* f) { assert(rstack_size(f) > 0); return *(--f->top_rstack); }
 void rpush(forth_t* f, u64 p) { assert(rstack_size(f) < f->rstack_size);
     *f->top_rstack = p; ++(f->top_rstack); }
 
@@ -107,6 +107,8 @@ void lit(forth_t* f)
     push(f, *f->next);
     f->next += 1;
 }
+
+void dostack_size(forth_t* f) { push(f, stack_size(f)); }
 
 bool parse_number(const char* txt, i64* num)
 {
@@ -136,23 +138,59 @@ bool parse_number(const char* txt, i64* num)
     return true;
 }
 
-void push42(forth_t* f)
+// some arithmetic stuff
+
+void add(forth_t* f)
 {
-    *f->top_stack = 42;
-    ++f->top_stack;
+    assert(stack_size(f) >= 2);
+    i64 a = cast(i64, f->top_stack[-2]);
+    i64 b = cast(i64, f->top_stack[-1]);
+
+    pop(f);
+    f->top_stack[-1] = a + b;
 }
 
 void mult(forth_t* f)
 {
-    assert(f->top_stack - f->stack >= 2);
-    long a = cast(long, f->top_stack[-2]);
-    long b = cast(long, f->top_stack[-1]);
+    assert(stack_size(f) >= 2);
+    i64 a = cast(i64, f->top_stack[-2]);
+    i64 b = cast(i64, f->top_stack[-1]);
 
-    f->top_stack[-2] = a * b;
-    --f->top_stack;
+    pop(f);
+    f->top_stack[-1] = a * b;
 }
 
+void sub(forth_t* f)
+{
+    assert(stack_size(f) >= 2);
+    i64 a = cast(i64, f->top_stack[-2]);
+    i64 b = cast(i64, f->top_stack[-1]);
+
+    pop(f);
+    f->top_stack[-1] = a - b;
+}
+
+void divmod(forth_t* f)
+{
+    assert(stack_size(f) >= 2);
+    i64 a = cast(i64, f->top_stack[-2]);
+    i64 b = cast(i64, f->top_stack[-1]);
+
+    f->top_stack[-2] = a / b;
+    f->top_stack[-1] = a % b;
+}
+
+
 void drop(forth_t* f) { pop(f); }
+
+void swap(forth_t* f)
+{
+    assert(stack_size(f) >= 2);
+    u64 a = pop(f);
+    u64 b = pop(f);
+    push(f, a);
+    push(f, b);
+}
 
 void dup(forth_t* f)
 {
@@ -162,6 +200,8 @@ void dup(forth_t* f)
     *f->top_stack = x;
     ++f->top_stack;
 }
+
+// IO stuff
 
 void key(forth_t* f)
 {
@@ -218,6 +258,24 @@ void emit(forth_t* f)
     putchar(c);
 }
 
+void tell(forth_t* f)
+{
+    assert(stack_size(f) >= 1);
+    printf("%s", cast(const char*, pop(f)));
+}
+
+void open_read_file(forth_t* f)
+{
+    assert(stack_size(f) >= 1);
+    push(f, cast(u64, fopen(cast(const char*, pop(f)), "r")));
+}
+
+void close_file(forth_t* f)
+{
+    assert(stack_size(f) >= 1);
+    fclose(cast(FILE*, pop(f)));
+}
+
 u64* codeword(u8* word)
 {
     word += 9; // skip link ptr and flag byte
@@ -227,6 +285,7 @@ u64* codeword(u8* word)
 }
 
 u8* wordname(u8* word) { return word + 9; }
+u8* wordtag(u8* word) { return word + 8; }
 
 void semicolon(forth_t* f)
 {
@@ -330,6 +389,12 @@ bool is_immediate_word(u8* word)
     return word[8] & IMMEDIATE_FLAG;
 }
 
+void immediate(forth_t* f)
+{
+    assert(f->latest);
+    *wordtag(f->latest) |= IMMEDIATE_FLAG;
+}
+
 void dumpwords(forth_t* f)
 {
     u8* latest = f->latest;
@@ -390,22 +455,39 @@ forth_t* new_forth()
     // by default, read from stdin
     f->input_stream = stdin;
 
-    push_primitive_word(f, "42", 0, push42);
+    // stack manipulation
+    push_primitive_word(f, "stack-size", 0, dostack_size);
+    push_primitive_word(f, "dup", 0, dup);
+    push_primitive_word(f, "drop", 0, drop);
+    push_primitive_word(f, "swap", 0, swap);
+    
+    // arithmetic stuff
+    push_primitive_word(f, "+", 0, add);
     push_primitive_word(f, "*", 0, mult);
+    push_primitive_word(f, "-", 0, sub);
+    push_primitive_word(f, "divmod", 0, divmod);
+    
     push_primitive_word(f, "docol", 0, docol);
     push_primitive_word(f, "exit", 0, doexit);
-    push_primitive_word(f, "dup", 0, dup);
+    
     push_primitive_word(f, "key", 0, key);
     push_primitive_word(f, "emit", 0, emit);
     push_primitive_word(f, "word", 0, word);
+    push_primitive_word(f, "tell", 0, tell);
     push_primitive_word(f, ":", 0, colon);
     push_primitive_word(f, ";", IMMEDIATE_FLAG, semicolon);
     push_primitive_word(f, "lit", 0, lit);
-    push_primitive_word(f, "drop", 0, drop);
+    push_primitive_word(f, "immediate", 0, immediate);
 
     push_primitive_word(f, ".s", 0, printstack);
     push_primitive_word(f, ".w", 0, printwords);
     push_primitive_word(f, ".d", 0, dumpwords);
+
+    push_forth_word(f, "test", 0, (u8*[]){
+		find_word(f, "word"),
+		find_word(f, "tell"),
+		NULL
+	    });
     
     // push_forth_word(f, "sq", 0, (u8*[]){find_word(f, "dup"), find_word(f, "*"), NULL});
     
