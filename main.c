@@ -108,6 +108,12 @@ void lit(forth_t* f)
     f->next += 1;
 }
 
+void branch(forth_t* f)
+{
+    i64 offset = *f->next;
+    f->next += offset;
+}
+
 void dostack_size(forth_t* f) { push(f, stack_size(f)); }
 
 bool parse_number(const char* txt, i64* num)
@@ -380,9 +386,37 @@ u8* push_forth_word(forth_t* f, const char* name, u8 flags, u8** words)
     // link to codeword of exit, TODO make it better
     
     f->latest = f->here;
-    f->here += wordlen;
+    f->here += wordlen + 8; // need +8 for exit
     return f->latest;
 }
+
+// same, but does not look for codewords; just put the content
+// straight in the body of the word; no need for exit though
+u8* push_forth_word_raw(forth_t* f, const char* name, u8 flags, u64* words)
+{
+    size_t namelen = strlen(name) + 1; // include null char
+    // compute the number of words
+    size_t nwords = 0;
+    while(words[nwords]) nwords++;
+    
+    size_t wordlen = 8 + 1 + 8 + namelen + nwords * 8;
+    
+    *cast(u8**, f->here) = f->latest; // next word
+    f->here[8] = flags;
+    strcpy(f->here + 9, name);
+    *cast(u64*, f->here + 9 + namelen) = cast(u64, docol);
+
+    size_t n = 0;
+    for(; n < nwords ; ++n)
+	cast(u64*, f->here + 9 + namelen + 8)[n] = words[n]; // to link to codeword
+    (cast(u64*, f->here + 9 + namelen + 8))[n] = cast(u64, codeword(find_word(f, "exit")));
+    // link to codeword of exit, TODO make it better
+    
+    f->latest = f->here;
+    f->here += wordlen + 8; // need +8 for exit
+    return f->latest;
+}
+
 
 bool is_immediate_word(u8* word)
 {
@@ -477,6 +511,7 @@ forth_t* new_forth()
     push_primitive_word(f, ":", 0, colon);
     push_primitive_word(f, ";", IMMEDIATE_FLAG, semicolon);
     push_primitive_word(f, "lit", 0, lit);
+    push_primitive_word(f, "branch", 0, branch);
     push_primitive_word(f, "immediate", 0, immediate);
 
     push_primitive_word(f, ".s", 0, printstack);
@@ -488,6 +523,17 @@ forth_t* new_forth()
 		find_word(f, "tell"),
 		NULL
 	    });
+
+    push_forth_word_raw(f, "interpret", 0, (u64[]){
+	    cast(u64, codeword(find_word(f, ".s"))),
+	    0
+	});
+
+    push_forth_word_raw(f, "quit", 0, (u64[]){
+	    cast(u64, codeword(find_word(f, "interpret"))),
+	    cast(u64, codeword(find_word(f, "branch"))), -2,
+	    0
+	});
     
     // push_forth_word(f, "sq", 0, (u8*[]){find_word(f, "dup"), find_word(f, "*"), NULL});
     
