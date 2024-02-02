@@ -114,6 +114,24 @@ void branch(forth_t* f)
     f->next += offset;
 }
 
+void is_compiling(forth_t* f)
+{
+    push(f, f->state);
+}
+
+void set_immediate_mode(forth_t* f) { f->state = NORMAL_STATE; }
+void set_compile_mode(forth_t* f) { f->state = COMPILE_STATE; }
+
+void doerror(forth_t* f)
+{
+    exit(EXIT_FAILURE);
+}
+
+void dorun_word(forth_t* f)
+{
+    f->next = cast(u64*, pop(f));
+}
+
 void dostack_size(forth_t* f) { push(f, stack_size(f)); }
 
 bool parse_number(const char* txt, i64* num)
@@ -142,6 +160,14 @@ bool parse_number(const char* txt, i64* num)
 
     *num = negative ? -n : n;
     return true;
+}
+
+void doparse_number(forth_t* f)
+{
+    const char* txt = cast(const char*, pop(f));
+    push(f, 0);
+
+    push(f, parse_number(txt, f->top_stack - 1));
 }
 
 // some arithmetic stuff
@@ -270,6 +296,11 @@ void tell(forth_t* f)
     printf("%s", cast(const char*, pop(f)));
 }
 
+void dofind_word(forth_t* f)
+{
+    push(f, cast(u64, find_word(f, cast(const char*, pop(f)))));
+}
+
 void open_read_file(forth_t* f)
 {
     assert(stack_size(f) >= 1);
@@ -288,6 +319,11 @@ u64* codeword(u8* word)
     while(*word) word++; // skip word name
     word++; // null char
     return cast(u64*, word);
+}
+
+void docodeword(forth_t* f)
+{
+    push(f, cast(u64, codeword(cast(u8*, pop(f)))));
 }
 
 u8* wordname(u8* word) { return word + 9; }
@@ -503,11 +539,19 @@ forth_t* new_forth()
     
     push_primitive_word(f, "docol", 0, docol);
     push_primitive_word(f, "exit", 0, doexit);
+    push_primitive_word(f, "is-compiling", 0, is_compiling);
+    push_primitive_word(f, "[", IMMEDIATE_FLAG, set_immediate_mode);
+    push_primitive_word(f, "]", 0, set_compile_mode);
+    push_primitive_word(f, "error", 0, doerror);
+    push_primitive_word(f, "run-word", 0, dorun_word);
+    push_primitive_word(f, "code-word", 0, docodeword);
     
     push_primitive_word(f, "key", 0, key);
     push_primitive_word(f, "emit", 0, emit);
     push_primitive_word(f, "word", 0, word);
     push_primitive_word(f, "tell", 0, tell);
+    push_primitive_word(f, "parse-number", 0, doparse_number);
+    push_primitive_word(f, "find-word", 0, dofind_word);
     push_primitive_word(f, ":", 0, colon);
     push_primitive_word(f, ";", IMMEDIATE_FLAG, semicolon);
     push_primitive_word(f, "lit", 0, lit);
@@ -520,7 +564,7 @@ forth_t* new_forth()
 
     push_forth_word(f, "test", 0, (u8*[]){
 		find_word(f, "word"),
-		find_word(f, "tell"),
+		find_word(f, "find-word"),
 		NULL
 	    });
 
