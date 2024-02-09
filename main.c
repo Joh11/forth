@@ -167,7 +167,7 @@ void doparse_number(forth_t* f)
     const char* txt = cast(const char*, pop(f));
     push(f, 0);
 
-    push(f, parse_number(txt, f->top_stack - 1));
+    push(f, parse_number(txt, cast(i64*, f->top_stack - 1)));
 }
 
 // some arithmetic stuff
@@ -413,8 +413,10 @@ void colon(forth_t* f)
     *cast(u8**, f->here) = f->latest;
     f->here[9] = 0; // flags
 
+    // TODO maybe do it smarter (also do it for the 3 other functions
+    // dealing with namelen)
     memset(wordname(f->here), 0, namelen);
-    strcpy(wordname(f->here), name);
+    strcpy(cast(char*, wordname(f->here)), name);
     
     *codeword(f->here) = cast(u64, docol);
 
@@ -472,7 +474,7 @@ u8* push_primitive_word(forth_t* f, const char* name, u8 flags, prim_t* primitiv
     f->here[8] = flags; // flags
     
     memset(f->here + 9, 0, namelen);
-    strcpy(f->here + 9, name);
+    strcpy(cast(char*, f->here + 9), name);
     
     *cast(u64*, f->here + 9 + namelen) = cast(u64, primitive);
 
@@ -496,7 +498,7 @@ u8* push_forth_word(forth_t* f, const char* name, u8 flags, u8** words)
     *cast(u8**, f->here) = f->latest; // next word
     f->here[8] = flags;
     memset(f->here + 9, 0, namelen);
-    strcpy(f->here + 9, name);
+    strcpy(cast(char*, f->here + 9), name);
     
     *cast(u64*, f->here + 9 + namelen) = cast(u64, docol);
 
@@ -530,7 +532,7 @@ u8* push_forth_word_raw(forth_t* f, const char* name, u8 flags, u64* words)
     f->here[8] = flags;
     
     memset(f->here + 9, 0, namelen);
-    strcpy(f->here + 9, name);
+    strcpy(cast(char*, f->here + 9), name);
     
     *cast(u64*, f->here + 9 + namelen) = cast(u64, docol);
 
@@ -563,7 +565,7 @@ void dumpwords(forth_t* f)
 
     while(latest)
     {
-	const char* name = wordname(latest);
+	const char* name = cast(char*, wordname(latest));
 	u64* cw = codeword(latest);
 	
 	printf("found%s word %s at %p (cw at %p)\n", is_immediate_word(latest) ? " immediate" : "",
@@ -710,7 +712,7 @@ u8* find_word(forth_t* f, const char* name)
     u8* latest = f->latest;
     while(latest)
     {
-	if(strcmp(wordname(latest), name) == 0)
+	if(strcmp(cast(char*, wordname(latest)), name) == 0)
 	    return latest;
 	
 	latest = *cast(u8**, latest);
