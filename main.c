@@ -405,7 +405,6 @@ void colon(forth_t* f)
     size_t namelen = strlen(name) + 1; // include null char
     // align to 8 bytes boundary, + 1 because flag already misaligns
     if((namelen + 1) % 8 != 0) namelen += 8 - ((namelen + 1) % 8);
-    // TODO clean before strcpy
     size_t wordlen = 8 + 1 + 8 + namelen;
     
     assert(f->state == NORMAL_STATE); // must be in normal mode
@@ -413,7 +412,10 @@ void colon(forth_t* f)
 
     *cast(u8**, f->here) = f->latest;
     f->here[9] = 0; // flags
+
+    memset(wordname(f->here), 0, namelen);
     strcpy(wordname(f->here), name);
+    
     *codeword(f->here) = cast(u64, docol);
 
     f->latest = f->here;
@@ -468,7 +470,10 @@ u8* push_primitive_word(forth_t* f, const char* name, u8 flags, prim_t* primitiv
 
     *cast(u8**, f->here) = f->latest; // next word
     f->here[8] = flags; // flags
+    
+    memset(f->here + 9, 0, namelen);
     strcpy(f->here + 9, name);
+    
     *cast(u64*, f->here + 9 + namelen) = cast(u64, primitive);
 
     f->latest = f->here;
@@ -490,7 +495,9 @@ u8* push_forth_word(forth_t* f, const char* name, u8 flags, u8** words)
     
     *cast(u8**, f->here) = f->latest; // next word
     f->here[8] = flags;
+    memset(f->here + 9, 0, namelen);
     strcpy(f->here + 9, name);
+    
     *cast(u64*, f->here + 9 + namelen) = cast(u64, docol);
 
     size_t n = 0;
@@ -521,7 +528,10 @@ u8* push_forth_word_raw(forth_t* f, const char* name, u8 flags, u64* words)
     
     *cast(u8**, f->here) = f->latest; // next word
     f->here[8] = flags;
+    
+    memset(f->here + 9, 0, namelen);
     strcpy(f->here + 9, name);
+    
     *cast(u64*, f->here + 9 + namelen) = cast(u64, docol);
 
     size_t n = 0;
