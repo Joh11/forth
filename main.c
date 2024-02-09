@@ -97,10 +97,7 @@ void docol(forth_t* f)
     // the end of the interpret loop (i.e. NEXT in jonesforth)
 }
 
-void doexit(forth_t* f)
-{
-    f->next = cast(u64*, rpop(f));
-}
+void doexit(forth_t* f) { f->next = cast(u64*, rpop(f)); }
 
 void lit(forth_t* f)
 {
@@ -110,27 +107,30 @@ void lit(forth_t* f)
 
 void branch(forth_t* f)
 {
-    i64 offset = *f->next;
+    i64 offset = *f->next; f->next++;
     f->next += offset;
 }
 
-void is_compiling(forth_t* f)
+void zero_branch(forth_t* f)
 {
-    push(f, f->state);
+    i64 offset = *f->next; f->next++;
+    
+    if(pop(f) == 0)
+    {
+	printf("jumping by offset %ld", offset);
+	f->next += offset;
+    }
+    else printf("did not jump");
 }
+
+void is_compiling(forth_t* f) { push(f, f->state); }
 
 void set_immediate_mode(forth_t* f) { f->state = NORMAL_STATE; }
 void set_compile_mode(forth_t* f) { f->state = COMPILE_STATE; }
 
-void doerror(forth_t* f)
-{
-    exit(EXIT_FAILURE);
-}
+void doerror(forth_t* f) { exit(EXIT_FAILURE); }
 
-void dorun_word(forth_t* f)
-{
-    f->next = cast(u64*, pop(f));
-}
+void dorun_word(forth_t* f) { f->next = cast(u64*, pop(f)); }
 
 void dostack_size(forth_t* f) { push(f, stack_size(f)); }
 
@@ -212,6 +212,11 @@ void divmod(forth_t* f)
     f->top_stack[-1] = a % b;
 }
 
+// logical stuff
+
+void donot(forth_t* f) { push(f, !pop(f)); }
+
+// stack manipulation
 
 void drop(forth_t* f) { pop(f); }
 
@@ -262,14 +267,15 @@ void word(forth_t* f)
     size_t n = 0;
 
     // skip comments before the word
-    if(c == '#')
+    while(c == '#')
     {
 	while(true)
 	{
 	    c = fgetc(f->input_stream);
 	    if(c == '\n' || c == EOF) break;
 	}
-	if(c != EOF) c = fgetc(f->input_stream);
+	while(isspace(c = fgetc(f->input_stream))); // skip whitespace again
+	// if(c != EOF) c = fgetc(f->input_stream);
     }
     
     for(; n < 64; ++n)
@@ -300,7 +306,12 @@ void word(forth_t* f)
 	return;
     }
 
-    push(f, cast(u64, &buf));
+    if(strcmp(buf, "t1") == 0)
+    {
+	printf("bonjour\n");
+    }
+    
+    push(f, cast(u64, buf));
 }
 
 void emit(forth_t* f)
@@ -342,9 +353,16 @@ void close_file(forth_t* f)
 
 u64* codeword(u8* word)
 {
+    u8* start = word;
+    
     word += 9; // skip link ptr and flag byte
+    
     while(*word) word++; // skip word name
     word++; // null char
+    
+    // now align to 8bytes boundary
+    while((word - start) % 8 != 0) word++;
+    
     return cast(u64*, word);
 }
 
@@ -366,6 +384,18 @@ void semicolon(forth_t* f)
     f->here += 8;
 }
 
+void here(forth_t* f) { push(f, cast(u64, &f->here)); }
+void latest(forth_t* f) { push(f, cast(u64, &f->latest)); }
+
+void fetch(forth_t* f) { push(f, *cast(u64*, pop(f))); }
+void store(forth_t* f)
+{
+    u64 addr = pop(f);
+    u64 val = pop(f);
+    *cast(u64*, addr) = val;
+}
+
+
 void colon(forth_t* f)
 {
     // consume the next word
@@ -373,6 +403,9 @@ void colon(forth_t* f)
     const char* name = cast(const char*, pop(f));
     
     size_t namelen = strlen(name) + 1; // include null char
+    // align to 8 bytes boundary, + 1 because flag already misaligns
+    if((namelen + 1) % 8 != 0) namelen += 8 - ((namelen + 1) % 8);
+    // TODO clean before strcpy
     size_t wordlen = 8 + 1 + 8 + namelen;
     
     assert(f->state == NORMAL_STATE); // must be in normal mode
@@ -385,6 +418,18 @@ void colon(forth_t* f)
 
     f->latest = f->here;
     f->here += wordlen;
+}
+
+void comma(forth_t* f)
+{
+    *cast(u64*, f->here) = pop(f);
+    f->here += 8; // because here is a u8*, not u64* !
+}
+
+void tick(forth_t* f)
+{
+    push(f, *f->next);
+    f->next += 1;
 }
 
 void printstack(forth_t* f)
@@ -416,6 +461,9 @@ void printwords(forth_t* f)
 u8* push_primitive_word(forth_t* f, const char* name, u8 flags, prim_t* primitive)
 {
     size_t namelen = strlen(name) + 1; // include null char
+    // align to 8 bytes boundary, + 1 because flag already misaligns
+    if((namelen + 1) % 8 != 0) namelen += 8 - ((namelen + 1) % 8);
+    // TODO clean before strcpy
     size_t wordlen = 8 + 1 + namelen + 8;
 
     *cast(u8**, f->here) = f->latest; // next word
@@ -431,6 +479,9 @@ u8* push_primitive_word(forth_t* f, const char* name, u8 flags, prim_t* primitiv
 u8* push_forth_word(forth_t* f, const char* name, u8 flags, u8** words)
 {
     size_t namelen = strlen(name) + 1; // include null char
+    // align to 8 bytes boundary, + 1 because flag already misaligns
+    if((namelen + 1) % 8 != 0) namelen += 8 - ((namelen + 1) % 8);
+    // TODO clean before strcpy
     // compute the number of words
     size_t nwords = 0;
     while(words[nwords]) nwords++;
@@ -458,6 +509,10 @@ u8* push_forth_word(forth_t* f, const char* name, u8 flags, u8** words)
 u8* push_forth_word_raw(forth_t* f, const char* name, u8 flags, u64* words)
 {
     size_t namelen = strlen(name) + 1; // include null char
+    // align to 8 bytes boundary, + 1 because flag already misaligns
+    if((namelen + 1) % 8 != 0) namelen += 8 - ((namelen + 1) % 8);
+    // TODO clean before strcpy
+    
     // compute the number of words
     size_t nwords = 0;
     while(words[nwords]) nwords++;
@@ -501,7 +556,8 @@ void dumpwords(forth_t* f)
 	const char* name = wordname(latest);
 	u64* cw = codeword(latest);
 	
-	printf("found word %s at %p (cw at %p)\n", name, latest, cw);
+	printf("found%s word %s at %p (cw at %p)\n", is_immediate_word(latest) ? " immediate" : "",
+	       name, latest, cw);
 	if(*cw == cast(u64, docol) && strcmp(name, "docol") != 0)
 	{
 	    printf("forth word, consisting of: \n");
@@ -562,6 +618,9 @@ forth_t* new_forth()
     push_primitive_word(f, "*", 0, mult);
     push_primitive_word(f, "-", 0, sub);
     push_primitive_word(f, "divmod", 0, divmod);
+
+    // logical stuff
+    push_primitive_word(f, "not", 0, donot);
     
     push_primitive_word(f, "docol", 0, docol);
     push_primitive_word(f, "exit", 0, doexit);
@@ -580,9 +639,16 @@ forth_t* new_forth()
     push_primitive_word(f, "find-word", 0, dofind_word);
     push_primitive_word(f, ":", 0, colon);
     push_primitive_word(f, ";", IMMEDIATE_FLAG, semicolon);
+    push_primitive_word(f, ",", 0, comma);
+    push_primitive_word(f, "'", 0, tick);
+    push_primitive_word(f, "here", 0, here);
+    push_primitive_word(f, "latest", 0, latest);
+    push_primitive_word(f, "@", 0, fetch);
+    push_primitive_word(f, "!", 0, store);
     push_primitive_word(f, "lit", 0, lit);
     push_primitive_word(f, "branch", 0, branch);
-    push_primitive_word(f, "immediate", 0, immediate);
+    push_primitive_word(f, "0branch", 0, zero_branch);
+    push_primitive_word(f, "immediate", IMMEDIATE_FLAG, immediate);
     push_primitive_word(f, "stdin", 0, dostdin);
     push_primitive_word(f, "set-input-stream", 0, set_input_stream);
     push_primitive_word(f, "get-input-stream", 0, get_input_stream);
@@ -608,8 +674,16 @@ forth_t* new_forth()
 	    cast(u64, codeword(find_word(f, "branch"))), -2,
 	    0
 	});
-    
-    // push_forth_word(f, "sq", 0, (u8*[]){find_word(f, "dup"), find_word(f, "*"), NULL});
+
+    push_forth_word_raw(f, "test-0branch", 0, (u64[]){
+	    cast(u64, codeword(find_word(f, "lit"))), 42,
+	    cast(u64, codeword(find_word(f, "dup"))),
+	    cast(u64, codeword(find_word(f, "-"))),
+	    cast(u64, codeword(find_word(f, "0branch"))), 2,
+	    cast(u64, codeword(find_word(f, "lit"))), 2,
+	    cast(u64, codeword(find_word(f, "lit"))), 3,
+	    0
+	});
     
     return f;
 }
@@ -660,7 +734,8 @@ void repl(forth_t* f)
 	    {
 		u8* next = find_word(f, wordstring);
 		assert(next);
-		
+
+		// printf("[run word %s]\n", wordstring);
 		run_word(f, next);
 	    }
 	}
@@ -678,13 +753,15 @@ void repl(forth_t* f)
 	    }
 	    else
 	    {
-		// TODO deal with numbers first
 		u8* next = find_word(f, wordstring);
 		if(!next) printf("failed to find %s\n", wordstring);
 		assert(next);
 		
 		if(is_immediate_word(next))
+		{
+		    // printf("[run immediate word %s]\n", wordstring);
 		    run_word(f, next);
+		}
 		else
 		{
 		    *cast(u64**, f->here) = codeword(next);
