@@ -114,13 +114,7 @@ void branch(forth_t* f)
 void zero_branch(forth_t* f)
 {
     i64 offset = *f->next; f->next++;
-    
-    if(pop(f) == 0)
-    {
-	printf("jumping by offset %ld", offset);
-	f->next += offset;
-    }
-    else printf("did not jump");
+    if(pop(f) == 0) f->next += offset;
 }
 
 void is_compiling(forth_t* f) { push(f, f->state); }
@@ -304,11 +298,6 @@ void word(forth_t* f)
 	    printf("[due to something else]\n");
 
 	return;
-    }
-
-    if(strcmp(buf, "t1") == 0)
-    {
-	printf("bonjour\n");
     }
     
     push(f, cast(u64, buf));
@@ -747,7 +736,6 @@ void repl(forth_t* f)
 		u8* next = find_word(f, wordstring);
 		assert(next);
 
-		// printf("[run word %s]\n", wordstring);
 		run_word(f, next);
 	    }
 	}
@@ -771,7 +759,6 @@ void repl(forth_t* f)
 		
 		if(is_immediate_word(next))
 		{
-		    // printf("[run immediate word %s]\n", wordstring);
 		    run_word(f, next);
 		}
 		else
