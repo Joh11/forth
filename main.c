@@ -213,6 +213,46 @@ void divmod(forth_t* f)
     f->top_stack[-1] = a % b;
 }
 
+void lt(forth_t* f)
+{
+    assert(stack_size(f) >= 2);
+    i64 a = cast(i64, f->top_stack[-2]);
+    i64 b = cast(i64, f->top_stack[-1]);
+
+    pop(f);
+    f->top_stack[-1] = a < b;
+}
+
+void gt(forth_t* f)
+{
+    assert(stack_size(f) >= 2);
+    i64 a = cast(i64, f->top_stack[-2]);
+    i64 b = cast(i64, f->top_stack[-1]);
+
+    pop(f);
+    f->top_stack[-1] = a > b;
+}
+
+void leq(forth_t* f)
+{
+    assert(stack_size(f) >= 2);
+    i64 a = cast(i64, f->top_stack[-2]);
+    i64 b = cast(i64, f->top_stack[-1]);
+
+    pop(f);
+    f->top_stack[-1] = a <= b;
+}
+
+void geq(forth_t* f)
+{
+    assert(stack_size(f) >= 2);
+    i64 a = cast(i64, f->top_stack[-2]);
+    i64 b = cast(i64, f->top_stack[-1]);
+
+    pop(f);
+    f->top_stack[-1] = a >= b;
+}
+
 // logical stuff
 
 void donot(forth_t* f) { push(f, !pop(f)); }
@@ -626,6 +666,10 @@ forth_t* new_forth()
     push_primitive_word(f, "*", 0, mult);
     push_primitive_word(f, "-", 0, sub);
     push_primitive_word(f, "divmod", 0, divmod);
+    push_primitive_word(f, "<", 0, lt);
+    push_primitive_word(f, ">", 0, gt);
+    push_primitive_word(f, "<=", 0, leq);
+    push_primitive_word(f, ">=", 0, geq);
 
     // logical stuff
     push_primitive_word(f, "not", 0, donot);

@@ -12,8 +12,8 @@
 : then immediate
        dup
        here @ swap - # offset in bytes
-       8 /           # in 8bytes
-       1 -           # the 8bytes of offset are already taken care of
+       8 /           # in quads
+       1 -           # the quad of offset are already taken care of
        swap !
 ;
 
@@ -28,8 +28,36 @@
        swap !
 ;
 
-: t0
-  1 if 2 else 3 then 4 5
+# begin <loop-part> <condition> until
+# compiles to:
+# <loop-part> <condition> (0branch to loop-part)
+
+: begin immediate
+  here @
+;
+
+: until immediate
+  ' 0branch ,
+  here @ -      # offset in bytes
+  8 /           # in quads
+  1 -           # the quad of offset is against us here
+  ,             # compile it
+;
+
+: while immediate
+	' 0branch ,
+	here @
+	0 ,
+;
+
+: repeat immediate
+	' branch ,
+	swap here @ -
+	8 / 1 - ,
+	dup
+	here @ swap -
+	8 / 1 -
+	swap !
 ;
 
 : close-and-stdin
@@ -43,6 +71,7 @@ close-and-stdin
 : ( immediate
     
   ;
+
 
 : '
     word find-word code-word
