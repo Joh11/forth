@@ -213,6 +213,16 @@ void divmod(forth_t* f)
     f->top_stack[-1] = a % b;
 }
 
+void eq(forth_t* f)
+{
+    assert(stack_size(f) >= 2);
+    i64 a = cast(i64, f->top_stack[-2]);
+    i64 b = cast(i64, f->top_stack[-1]);
+
+    pop(f);
+    f->top_stack[-1] = a == b;
+}
+
 void lt(forth_t* f)
 {
     assert(stack_size(f) >= 2);
@@ -256,6 +266,25 @@ void geq(forth_t* f)
 // logical stuff
 
 void donot(forth_t* f) { push(f, !pop(f)); }
+void doand(forth_t* f)
+{
+    assert(stack_size(f) >= 2);
+    i64 a = cast(i64, f->top_stack[-2]);
+    i64 b = cast(i64, f->top_stack[-1]);
+
+    pop(f);
+    f->top_stack[-1] = a && b;
+}
+
+void door(forth_t* f)
+{
+    assert(stack_size(f) >= 2);
+    i64 a = cast(i64, f->top_stack[-2]);
+    i64 b = cast(i64, f->top_stack[-1]);
+
+    pop(f);
+    f->top_stack[-1] = a || b;
+}
 
 // stack manipulation
 
@@ -273,11 +302,19 @@ void swap(forth_t* f)
 void dup(forth_t* f)
 {
     assert(f->top_stack - f->stack >= 1);
-    long x = cast(long, f->top_stack[-1]);
+    u64 x = cast(u64, f->top_stack[-1]);
 
     *f->top_stack = x;
     ++f->top_stack;
 }
+
+void over(forth_t* f)
+{
+    assert(f->top_stack - f->stack >= 2);
+    u64 x = cast(u64, f->top_stack[-2]);
+    push(f, x);
+}
+
 
 // IO stuff
 
@@ -658,6 +695,7 @@ forth_t* new_forth()
     // stack manipulation
     push_primitive_word(f, "stack-size", 0, dostack_size);
     push_primitive_word(f, "dup", 0, dup);
+    push_primitive_word(f, "over", 0, over);
     push_primitive_word(f, "drop", 0, drop);
     push_primitive_word(f, "swap", 0, swap);
     
@@ -666,6 +704,7 @@ forth_t* new_forth()
     push_primitive_word(f, "*", 0, mult);
     push_primitive_word(f, "-", 0, sub);
     push_primitive_word(f, "divmod", 0, divmod);
+    push_primitive_word(f, "=", 0, eq);
     push_primitive_word(f, "<", 0, lt);
     push_primitive_word(f, ">", 0, gt);
     push_primitive_word(f, "<=", 0, leq);
@@ -673,6 +712,8 @@ forth_t* new_forth()
 
     // logical stuff
     push_primitive_word(f, "not", 0, donot);
+    push_primitive_word(f, "and", 0, doand);
+    push_primitive_word(f, "or", 0, door);
     
     push_primitive_word(f, "docol", 0, docol);
     push_primitive_word(f, "exit", 0, doexit);

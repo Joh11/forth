@@ -60,23 +60,29 @@
 	swap !
 ;
 
+# inline comments. allows for nested comments
+: ( immediate
+  1
+  begin
+  key
+
+  # deeper level
+  dup 40 = if
+    swap 1 + swap
+  then
+
+  # remove one level
+  dup 41 = if
+    swap 1 - swap
+  then
+
+  41 = over 0 = and
+  until
+;
+
 : close-and-stdin
   get-input-stream close-file
   stdin set-input-stream
 ;
 
 close-and-stdin
-
-# define comments. Crude implementation: does not care about nested parentheses
-: ( immediate
-    
-  ;
-
-
-: '
-    word find-word code-word
-;
-
-: ['] immediate
-    word find-word code-word
-;
