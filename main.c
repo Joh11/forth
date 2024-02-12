@@ -1,4 +1,4 @@
-#define _GNU_SOURCE
+#define _GNU_SOURCE // needed for fmemopen (string -> FILE*)
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -9,14 +9,21 @@
 #include <stdbool.h>
 
 /* 
+   An adaptation of JONESFORTH, written in C.  
+
+   I differ from usual FORTH conventions by using null-terminated
+   strings, # for comments, and more verbose words (e.g. code-word
+   instead of >CFA)
+
    Anatomy of a forth word, stored in memory (in this order):
    - 8 bytes :: pointer to the next word (or NULL if this is the next free word)
    - 1 byte  :: some flags, to deal with immediate (not sure for now)
-   - word name (null terminated)
+   - word name (null terminated), and some padding to ensure 8-bytes
+     alignment
    - 8 bytes :: codeword
    - if forth word, nullptr terminated array of pointers to other words
 
-a possible solution:
+a solution:
 - a field "codeword", with type u8*
 - for C primitives: just a function pointer to the actual code to run
 - for forth words: a function pointer to the interpreting function,
