@@ -1,12 +1,8 @@
-: close-and-stdin
-  get-input-stream close-file
-  stdin set-input-stream
-;
+# define quotient and remainder from divmod
+: / divmod drop ;
+: % divmod swap drop ;
 
-: /
-  divmod drop
-;
-
+# control structures
 : if immediate
      ' 0branch ,
      here @
@@ -16,32 +12,32 @@
 : then immediate
        dup
        here @ swap - # offset in bytes
-       8 / # in 8bytes
-       1 - # the 8bytes of offset are already taken care of
+       8 /           # in 8bytes
+       1 -           # the 8bytes of offset are already taken care of
+       swap !
+;
+
+: else immediate
+       ' branch ,
+       here @
+       0 ,
+       swap dup
+       # same as then
+       here @ swap -
+       8 / 1 -
        swap !
 ;
 
 : t0
-  0 0branch [ 2 , ] 3 4 5
+  1 if 2 else 3 then 4 5
 ;
 
-: t1
-  0 if 3 then 4 5
+: close-and-stdin
+  get-input-stream close-file
+  stdin set-input-stream
 ;
 
 close-and-stdin
-
-
-
-
-
-: t2
-  ' 0branch
-;
-
-
-( I need to wrap this in a word, otherwise one cannot both close the
-file, and change the input stream to stdin )
 
 # define comments. Crude implementation: does not care about nested parentheses
 : ( immediate
