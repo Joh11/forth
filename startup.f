@@ -61,22 +61,25 @@
 ;
 
 # inline comments. allows for nested comments
+: '(' 40 ;
+: ')' 40 ;
+
 : ( immediate
   1
   begin
   key
 
   # deeper level
-  dup 40 = if
+  dup '(' = if
     swap 1 + swap
   then
 
   # remove one level
-  dup 41 = if
+  dup ')' = if
     swap 1 - swap
   then
-
-  41 = over 0 = and
+  
+  '(' = over 0 = and
   until
 ;
 

@@ -396,11 +396,7 @@ void emit(forth_t* f)
     putchar(c);
 }
 
-void tell(forth_t* f)
-{
-    assert(stack_size(f) >= 1);
-    printf("%s", cast(const char*, pop(f)));
-}
+void tell(forth_t* f) { printf("%s", cast(const char*, pop(f))); }
 
 void dofind_word(forth_t* f)
 {
@@ -746,37 +742,11 @@ forth_t* new_forth()
     push_primitive_word(f, "set-input-stream", 0, set_input_stream);
     push_primitive_word(f, "get-input-stream", 0, get_input_stream);
     push_primitive_word(f, "close-file", 0, close_file);
+    push_primitive_word(f, "open-read-file", 0, open_read_file);
 
     push_primitive_word(f, ".s", 0, printstack);
     push_primitive_word(f, ".w", 0, printwords);
     push_primitive_word(f, ".d", 0, dumpwords);
-
-    push_forth_word(f, "test", 0, (u8*[]){
-		find_word(f, "word"),
-		find_word(f, "find-word"),
-		NULL
-	    });
-
-    push_forth_word_raw(f, "interpret", 0, (u64[]){
-	    cast(u64, codeword(find_word(f, ".s"))),
-	    0
-	});
-
-    push_forth_word_raw(f, "quit", 0, (u64[]){
-	    cast(u64, codeword(find_word(f, "interpret"))),
-	    cast(u64, codeword(find_word(f, "branch"))), -2,
-	    0
-	});
-
-    push_forth_word_raw(f, "test-0branch", 0, (u64[]){
-	    cast(u64, codeword(find_word(f, "lit"))), 42,
-	    cast(u64, codeword(find_word(f, "dup"))),
-	    cast(u64, codeword(find_word(f, "-"))),
-	    cast(u64, codeword(find_word(f, "0branch"))), 2,
-	    cast(u64, codeword(find_word(f, "lit"))), 2,
-	    cast(u64, codeword(find_word(f, "lit"))), 3,
-	    0
-	});
     
     return f;
 }
